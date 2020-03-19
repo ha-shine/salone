@@ -13,11 +13,10 @@ struct Node {
     letter_set: HashSet<char>,
 
     // Arcs going out from this node, associated with the letter
-    arcs: HashMap<Kind, Node>
+    arcs: HashMap<Kind, Node>,
 }
 
 impl Node {
-
     fn new() -> Self {
         Node {
             letter_set: HashSet::new(),
@@ -32,7 +31,7 @@ impl Node {
         match peek {
             None => {
                 self.add_final(next)
-            },
+            }
 
             Some(_) => {
                 if let None = self.arcs.get(next) {
@@ -47,11 +46,10 @@ impl Node {
 
     fn add_final(&mut self, kind: &Kind) {
         match kind {
-            Kind::Char(c) => { self.letter_set.insert(*c); },
+            Kind::Char(c) => { self.letter_set.insert(*c); }
             _ => {}
         }
     }
-
 }
 
 pub struct Graph {
@@ -59,7 +57,6 @@ pub struct Graph {
 }
 
 impl Graph {
-
     pub fn new() -> Self {
         Graph {
             root: Node::new()
@@ -67,7 +64,7 @@ impl Graph {
     }
 
     pub fn add_word(&mut self, word: &str) {
-        for i in 1..word.len()+1 {
+        for i in 1..word.len() + 1 {
             let (head, tail) = word.split_at(i);
             let head = head.chars().rev().collect::<String>();
 
@@ -88,7 +85,6 @@ impl Graph {
             self.root.add_word(vec.iter().peekable());
         }
     }
-
 }
 
 #[cfg(test)]
