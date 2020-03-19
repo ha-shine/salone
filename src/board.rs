@@ -1,17 +1,14 @@
-enum Kind {
-    Char(char),
-    Blank(char)
-}
+use crate::solver::TileLetter;
 
 struct Square {
-    kind: Option<Kind>
+    letter: Option<TileLetter>
 }
 
 impl Square {
 
     fn new() -> Self {
         Square {
-            kind: None
+            letter: None
         }
     }
 
