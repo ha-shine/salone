@@ -64,8 +64,11 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new(rows: usize, cols: usize) -> Self {
-        // TODO: check pre-requisite, ie rows and cols must be odds so that we can find the center
+    pub fn new(rows: usize, cols: usize) -> Result<Self, &'static str> {
+        if rows % 2 == 0 || cols % 2 == 0 {
+            return Err("rows and cols must be odd numbers");
+        }
+
         let mut solver = Solver {
             graph: Graph::new(),
             rows,
@@ -82,7 +85,7 @@ impl Solver {
         // the center of the board is the only anchor at the start of the game
         solver.anchors.insert(solver.get_index(rows/2, cols/2));
 
-        solver
+        Ok(solver)
     }
 
     fn get_index(&self, row: usize, col: usize) -> usize {
