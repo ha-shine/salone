@@ -1,6 +1,5 @@
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashSet};
 
-use crate::board::Board;
 use crate::dag::Graph;
 use std::cmp::Ordering;
 
@@ -53,14 +52,80 @@ impl PartialEq for Solution {
 
 pub struct Solver {
     graph: Graph,
-    board: Board,
+
+    // dimensions and state of the board
+    rows: usize,
+    cols: usize,
+    board: Vec<Option<TileLetter>>,
+
+    // List of index of anchors
+    // Anchors are a set of tiles we can start looking for a legal move
+    anchors: HashSet<usize>
 }
 
 impl Solver {
     pub fn new(rows: usize, cols: usize) -> Self {
-        Solver {
+        // TODO: check pre-requisite, ie rows and cols must be odds so that we can find the center
+        let mut solver = Solver {
             graph: Graph::new(),
-            board: Board::new(rows, cols),
+            rows,
+            cols,
+            board: Vec::with_capacity(rows * cols),
+            anchors: HashSet::new(),
+        };
+
+        // all the tiles on the board at the beginning are empty
+        for _ in 0..rows * cols {
+            solver.board.push(None);
+        }
+
+        // the center of the board is the only anchor at the start of the game
+        solver.anchors.insert(solver.get_index(rows/2, cols/2));
+
+        solver
+    }
+
+    fn get_index(&self, row: usize, col: usize) -> usize {
+        (self.cols * row) + col
+    }
+
+    fn compute_anchors(&mut self, placements: &Vec<TilePlacement>) {
+        for placement in placements {
+            let row = placement.row;
+            let col = placement.col;
+
+            let index = self.get_index(row, col);
+            self.anchors.remove(&index);
+
+            // check the tiles surrounding the current placement
+            // if those tiles are empty, they can be anchors for next move
+            if row > 0 {
+                let index = self.get_index(row - 1, col);
+                if self.board[index].is_none() {
+                    self.anchors.insert(index);
+                }
+            }
+
+            if row < self.rows - 1 {
+                let index = self.get_index(row + 1, col);
+                if self.board[index].is_none() {
+                    self.anchors.insert(index);
+                }
+            }
+
+            if col > 0 {
+                let index = self.get_index(row, col - 1);
+                if self.board[index].is_none() {
+                    self.anchors.insert(index);
+                }
+            }
+
+            if col < self.cols - 1 {
+                let index = self.get_index(row, col + 1);
+                if self.board[index].is_none() {
+                    self.anchors.insert(index);
+                }
+            }
         }
     }
 
