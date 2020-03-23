@@ -1,6 +1,6 @@
 use std::collections::{BinaryHeap, HashSet};
 
-use crate::dag::{Graph, Arc};
+use crate::dag::{Graph, Arc, Kind};
 use std::cmp::Ordering;
 
 // Representation of letters on the rack
@@ -18,8 +18,17 @@ pub enum TileLetter {
     Char(char),
 }
 
+impl TileLetter {
+    fn to_char(&self) -> char {
+        match self {
+            TileLetter::Blank(ch) => *ch,
+            TileLetter::Char(ch) => *ch
+        }
+    }
+}
+
 // A single placement of letter on a tile with 0-index row and column
-#[derive(Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct TilePlacement {
     letter: TileLetter,
     row: usize,
@@ -51,6 +60,7 @@ impl PartialEq for Solution {
     }
 }
 
+#[derive(Eq, PartialEq)]
 enum Direction {
     TD,
     LR,
@@ -185,7 +195,7 @@ impl<'a> MoveGenerator<'a> {
         generator.moves
     }
 
-    fn generate(&mut self, offset: isize, letters: HashSet<RackLetter>, arc: &'a Arc) {
+    fn generate(&mut self, mut words: &Vec<TilePlacement>, offset: isize, letters: HashSet<RackLetter>, arc: &'a Arc) {
         let index = self.solver.get_index(self.row, self.col);
         if let Some(_) = self.solver.board[index] {
             // TODO: Go on
@@ -225,6 +235,75 @@ impl<'a> MoveGenerator<'a> {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // TODO: should words be a linked list since we need to add both from front and back?
+    fn go_on(&mut self, letter: TileLetter, words: &mut Vec<TilePlacement>,
+             offset: isize, letters: HashSet<RackLetter>, old_arc: &'a Arc, mut new_arc: Option<&'a Arc>) {
+
+        let mut row = self.row as isize;
+        let mut col = self.col as isize;
+        match self.dir {
+            Direction::LR => col += offset,
+            Direction::TD => row += offset
+        };
+
+        // moving left since offset is less than 0
+        if offset <= 0 {
+            words.insert(0, TilePlacement {
+                letter,
+                row: row as usize,
+                col: col as usize
+            });
+
+            // if we have empty space on left and letter is an ending character, record play
+            let empty_left = match self.dir {
+                Direction::TD => {
+                    row > 0 && self.solver.board[self.solver.get_index(row as usize - 1, col as usize)].is_none()
+                },
+                Direction::LR => {
+                    col > 0 && self.solver.board[self.solver.get_index(row as usize, col as usize - 1)].is_none()
+                }
+            };
+            if old_arc.letter_set.contains(&letter.to_char()) && empty_left {
+                self.moves.push(words.clone());
+            }
+
+            if let Some(arc) = new_arc.take() {
+                if (self.dir == Direction::LR && col > 0) || (self.dir == Direction::TD && row > 0) {
+                    self.generate(words, offset - 1, letters.clone(), arc);
+                }
+
+                let new_arc = arc.next.arcs.get(&Kind::Delim);
+                if new_arc.is_some() {
+                    self.generate(words, 1, letters, new_arc.unwrap());
+                }
+            }
+
+            return;
+        } else {
+            // in this place, offset is > 0, so we are moving right
+            words.push(TilePlacement {
+                letter,
+                row: row as usize,
+                col: col as usize,
+            });
+
+            // if we have empty space on the right and letter is an ending character, record play
+            let empty_right = match self.dir {
+                Direction::TD => {
+                    row as usize + 1 < self.solver.rows
+                        && self.solver.board[self.solver.get_index(row as usize + 1, col as usize)].is_none()
+                },
+                Direction::LR => {
+                    col as usize + 1 < self.solver.cols
+                        && self.solver.board[self.solver.get_index(row as usize, col as usize + 1)].is_none()
+                }
+            };
+            if old_arc.letter_set.contains(&letter.to_char()) && empty_right {
+                self.moves.push(words.clone());
             }
         }
     }
