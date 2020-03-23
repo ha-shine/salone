@@ -3,14 +3,14 @@ use std::iter::Peekable;
 use std::borrow::BorrowMut;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-enum Kind {
+pub enum Kind {
     Char(char),
     Delim,
 }
 
-struct Arc {
-    letter_set: HashSet<char>,
-    next: Node,
+pub struct Arc {
+    pub letter_set: HashSet<char>,
+    pub next: Node,
 }
 
 impl Arc {
@@ -35,9 +35,9 @@ impl Arc {
     }
 }
 
-struct Node {
+pub struct Node {
     // Arcs going out from this node, associated with the letter
-    arcs: HashMap<Kind, Arc>,
+    pub arcs: HashMap<Kind, Arc>,
 }
 
 impl Node {
@@ -60,13 +60,16 @@ impl Node {
 }
 
 pub struct Graph {
-    root: Node
+    pub init: Arc
 }
 
 impl Graph {
     pub fn new() -> Self {
+        let mut init = Arc::new();
+        init.next = Node::new();
+
         Graph {
-            root: Node::new()
+            init
         }
     }
 
@@ -89,7 +92,7 @@ impl Graph {
                 vec.push(Kind::Char(c));
             }
 
-            self.root.add_word(vec.iter().peekable());
+            self.init.next.add_word(vec.iter().peekable());
         }
     }
 }

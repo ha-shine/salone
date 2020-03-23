@@ -1,9 +1,10 @@
 use std::collections::{BinaryHeap, HashSet};
 
-use crate::dag::Graph;
+use crate::dag::{Graph, Arc};
 use std::cmp::Ordering;
 
 // Representation of letters on the rack
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum RackLetter {
     Blank,
     Char(char),
@@ -50,7 +51,13 @@ impl PartialEq for Solution {
     }
 }
 
+enum Direction {
+    TD,
+    LR,
+}
+
 type CharSet = HashSet<char>;
+type Pos = (usize, usize);
 
 pub struct Solver {
     graph: Graph,
@@ -67,7 +74,7 @@ pub struct Solver {
 
     // List of index of anchors
     // Anchors are a set of tiles we can start looking for a legal move
-    anchors: HashSet<usize>
+    anchors: HashSet<Pos>,
 }
 
 impl Solver {
@@ -86,8 +93,9 @@ impl Solver {
         };
 
         // the center of the board is the only anchor at the start of the game
-        let middle = solver.get_index(rows/2, cols/2);
-        solver.anchors.insert(middle);
+        solver.anchors.insert((rows / 2, cols / 2));
+
+        let middle = solver.get_index(rows / 2, cols / 2);
         solver.cross_sets[middle] = Some((b'a'..=b'z').map(char::from).collect());
 
         Ok(solver)
@@ -97,42 +105,31 @@ impl Solver {
         (self.cols * row) + col
     }
 
+    // TODO: cross set probably should be computed here too
     fn compute_anchors(&mut self, placements: &Vec<TilePlacement>) {
         for placement in placements {
             let row = placement.row;
             let col = placement.col;
+            let pos = (row, col);
 
-            let index = self.get_index(row, col);
-            self.anchors.remove(&index);
+            self.anchors.remove(&pos);
 
             // check the tiles surrounding the current placement
             // if those tiles are empty, they can be anchors for next move
             if row > 0 {
-                let index = self.get_index(row - 1, col);
-                if self.board[index].is_none() {
-                    self.anchors.insert(index);
-                }
+                self.anchors.insert((row - 1, col));
             }
 
             if row < self.rows - 1 {
-                let index = self.get_index(row + 1, col);
-                if self.board[index].is_none() {
-                    self.anchors.insert(index);
-                }
+                self.anchors.insert((row + 1, col));
             }
 
             if col > 0 {
-                let index = self.get_index(row, col - 1);
-                if self.board[index].is_none() {
-                    self.anchors.insert(index);
-                }
+                self.anchors.insert((row, col - 1));
             }
 
             if col < self.cols - 1 {
-                let index = self.get_index(row, col + 1);
-                if self.board[index].is_none() {
-                    self.anchors.insert(index);
-                }
+                self.anchors.insert((row, col + 1));
             }
         }
     }
@@ -144,6 +141,91 @@ impl Solver {
     pub fn place_tiles(&mut self, placements: Vec<TilePlacement>) {}
 
     pub fn solve(&mut self, letters: &Vec<RackLetter>) -> BinaryHeap<Solution> {
-        BinaryHeap::new()
+        let mut solutions = BinaryHeap::new();
+        for anchor in &self.anchors {
+            let mut placements = MoveGenerator::generate_moves(&self, letters, anchor.0, anchor.1, Direction::LR);
+            for placement in placements {
+                solutions.push(Solution {
+                    placement,
+                    score: 0,
+                })
+            }
+
+            placements = MoveGenerator::generate_moves(&self, letters, anchor.0, anchor.1, Direction::TD);
+            for placement in placements {
+                solutions.push(Solution {
+                    placement,
+                    score: 0,
+                })
+            }
+        }
+
+        solutions
+    }
+}
+
+struct MoveGenerator<'a> {
+    solver: &'a Solver,
+    row: usize,
+    col: usize,
+    dir: Direction,
+    moves: Vec<Vec<TilePlacement>>
+}
+
+impl<'a> MoveGenerator<'a> {
+    fn generate_moves(solver: &'a Solver, letters: &Vec<RackLetter>, row: usize, col: usize, dir: Direction) -> Vec<Vec<TilePlacement>> {
+        let generator = MoveGenerator {
+            solver,
+            row,
+            col,
+            dir,
+            moves: Vec::new(),
+        };
+
+        generator.moves
+    }
+
+    fn generate(&mut self, offset: isize, letters: HashSet<RackLetter>, arc: &'a Arc) {
+        let index = self.solver.get_index(self.row, self.col);
+        if let Some(_) = self.solver.board[index] {
+            // TODO: Go on
+            return;
+        }
+
+        // no letter remaining, end function
+        if letters.is_empty() {
+            return;
+        }
+
+        let mut row = self.row as isize;
+        let mut col = self.col as isize;
+        match self.dir {
+            Direction::TD => row += offset,
+            Direction::LR => col += offset,
+        };
+
+        // this won't be out of index, the bound will be checked in go on method
+        let index = self.solver.get_index(row as usize, col as usize);
+        for letter in &letters {
+            match letter {
+                RackLetter::Char(ch) => {
+                    if let Some(cross_set) = &self.solver.cross_sets[index] {
+                        if cross_set.contains(ch) {
+                            let mut cloned_letters = letters.clone();
+                            cloned_letters.remove(letter);
+                            // TODO: go on
+                        }
+                    }
+                }
+                RackLetter::Blank => {
+                    if let Some(cross_set) = &self.solver.cross_sets[index] {
+                        for playable_letter in cross_set {
+                            // TODO: put blank into the word vector as playable_letter
+                            //       and go on
+                        }
+                    }
+                }
+            }
+        }
     }
 }
