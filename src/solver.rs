@@ -11,7 +11,7 @@ pub enum RackLetter {
 
 // Representation of letters on the tile of the board
 // The blank on the tile must represent a character
-#[derive(Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum TileLetter {
     Blank(char),
     Char(char),
@@ -50,6 +50,8 @@ impl PartialEq for Solution {
     }
 }
 
+type CharSet = HashSet<char>;
+
 pub struct Solver {
     graph: Graph,
 
@@ -57,6 +59,11 @@ pub struct Solver {
     rows: usize,
     cols: usize,
     board: Vec<Option<TileLetter>>,
+
+    // Sets of characters allowed on the given tile
+    // None means the square is probably empty (or already have tile played which can be checked)
+    // An empty set means there is no playable letter
+    cross_sets: Vec<Option<CharSet>>,
 
     // List of index of anchors
     // Anchors are a set of tiles we can start looking for a legal move
@@ -73,17 +80,15 @@ impl Solver {
             graph: Graph::new(),
             rows,
             cols,
-            board: Vec::with_capacity(rows * cols),
+            board: vec![None; rows * cols],
+            cross_sets: vec![None; rows * cols],
             anchors: HashSet::new(),
         };
 
-        // all the tiles on the board at the beginning are empty
-        for _ in 0..rows * cols {
-            solver.board.push(None);
-        }
-
         // the center of the board is the only anchor at the start of the game
-        solver.anchors.insert(solver.get_index(rows/2, cols/2));
+        let middle = solver.get_index(rows/2, cols/2);
+        solver.anchors.insert(middle);
+        solver.cross_sets[middle] = Some((b'a'..=b'z').map(char::from).collect());
 
         Ok(solver)
     }
