@@ -80,7 +80,8 @@ pub struct Solver {
     // Sets of characters allowed on the given tile
     // None means the square is probably empty (or already have tile played which can be checked)
     // An empty set means there is no playable letter
-    cross_sets: Vec<Option<CharSet>>,
+    // 0: cross sets for left-right plays, 1: cross sets for top-down plays
+    cross_sets: (Vec<CharSet>, Vec<CharSet>),
 
     // List of index of anchors
     // Anchors are a set of tiles we can start looking for a legal move
@@ -93,26 +94,40 @@ impl Solver {
             return Err("rows and cols must be odd numbers");
         }
 
+        let mut lr_cross = Vec::new();
+        let mut td_cross = Vec::new();
+        let charset = (b'a'..=b'z').map(char::from).collect::<HashSet<_>>();
+
+        for _ in 0..rows*cols {
+            lr_cross.push(charset.clone());
+            td_cross.push(charset.clone());
+        }
+
         let mut solver = Solver {
             graph: Graph::new(),
             rows,
             cols,
             board: vec![None; rows * cols],
-            cross_sets: vec![None; rows * cols],
+            cross_sets: (lr_cross, td_cross),
             anchors: HashSet::new(),
         };
 
         // the center of the board is the only anchor at the start of the game
         solver.anchors.insert((rows / 2, cols / 2));
 
-        let middle = solver.get_index(rows / 2, cols / 2);
-        solver.cross_sets[middle] = Some((b'a'..=b'z').map(char::from).collect());
-
         Ok(solver)
     }
 
     fn get_index(&self, row: usize, col: usize) -> usize {
         (self.cols * row) + col
+    }
+
+    fn get_cross_set(&self, row: usize, col: usize, dir: &Direction) -> &CharSet {
+        let i = self.get_index(row, col);
+        match dir {
+            Direction::LR => &self.cross_sets.0[i],
+            Direction::TD => &self.cross_sets.1[i]
+        }
     }
 
     // TODO: cross set probably should be computed here too
@@ -224,12 +239,11 @@ impl<'a> MoveGenerator<'a> {
         };
 
         // this won't be out of index, the bound will be checked in go on method
-        let index = self.solver.get_index(row as usize, col as usize);
-        if self.solver.cross_sets[index].is_none() {
+        let cross_set = self.solver.get_cross_set(row as usize, col as usize, &self.dir);
+        if cross_set.is_empty() {
             return; // no letter eligible here, return early
         }
 
-        let cross_set = (&self).solver.cross_sets[index].as_ref().unwrap();
         for (idx, letter) in (&rack).iter().enumerate() {
             match letter {
                 RackLetter::Char(ch) if cross_set.contains(ch) => {
