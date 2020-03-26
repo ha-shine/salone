@@ -78,7 +78,6 @@ pub struct Solver {
     board: Vec<Option<TileLetter>>,
 
     // Sets of characters allowed on the given tile
-    // None means the square is probably empty (or already have tile played which can be checked)
     // An empty set means there is no playable letter
     // 0: cross sets for left-right plays, 1: cross sets for top-down plays
     cross_sets: (Vec<CharSet>, Vec<CharSet>),
@@ -130,6 +129,31 @@ impl Solver {
         }
     }
 
+    fn get_left_most_anchor(&self, pos: &Pos, dir: &Direction) -> Pos {
+        match dir {
+            Direction::LR => {
+                let (mut row, mut col) = *pos;
+                while row > 0 {
+                    if self.anchors.contains(&(row - 1, col)) {
+                        row -= 1;
+                    }
+                }
+
+                return (row, col)
+            },
+            Direction::TD => {
+                let (mut row, mut col) = *pos;
+                while col > 0 {
+                    if self.anchors.contains(&(row, col - 1)) {
+                        row -= 1;
+                    }
+                }
+
+                return (row, col)
+            }
+        }
+    }
+
     // TODO: cross set probably should be computed here too
     fn compute_anchors_and_cross_set(&mut self, placements: &Vec<TilePlacement>) {
         let mut new_anchors = Vec::new();
@@ -139,6 +163,11 @@ impl Solver {
             let col = placement.col;
             let pos = (row, col);
             new_anchors.push(pos);
+
+            // empty the cross sets for this index
+            let i = self.get_index(row, col);
+            self.cross_sets.0[i].clear();
+            self.cross_sets.1[i].clear();
 
             // check the tiles surrounding the current placement
             // if those tiles are empty, they can be anchors for next move
@@ -175,7 +204,8 @@ impl Solver {
         for anchor in &self.anchors {
             // TODO: actually might not need to generate for every anchor
             //       i.e some placement would probably already cover the existing anchors
-            let mut placements = MoveGenerator::generate_moves(&self, letters, anchor.0, anchor.1, Direction::LR);
+            let left_anchor = self.get_left_most_anchor(anchor, &Direction::LR);
+            let mut placements = MoveGenerator::generate_moves(&self, letters, left_anchor.0, left_anchor.1, Direction::LR);
             for placement in placements {
                 // TODO: Calculate score
                 solutions.push(Solution {
@@ -184,7 +214,8 @@ impl Solver {
                 })
             }
 
-            placements = MoveGenerator::generate_moves(&self, letters, anchor.0, anchor.1, Direction::TD);
+            let left_anchor = self.get_left_most_anchor(anchor, &Direction::TD);
+            placements = MoveGenerator::generate_moves(&self, letters, left_anchor.0, left_anchor.1, Direction::TD);
             for placement in placements {
                 solutions.push(Solution {
                     placement,
