@@ -199,7 +199,7 @@ impl Solver {
 
     pub fn place_tiles(&mut self, placements: Vec<TilePlacement>) {}
 
-    pub fn solve(&mut self, letters: &Vec<RackLetter>) -> BinaryHeap<Solution> {
+    pub fn generate_moves(&mut self, letters: &Vec<RackLetter>) -> BinaryHeap<Solution> {
         let mut solutions = BinaryHeap::new();
         let anchors = self.anchors.clone();
 
