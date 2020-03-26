@@ -179,23 +179,25 @@ struct MoveGenerator<'a> {
     row: usize,
     col: usize,
     dir: Direction,
-    moves: Vec<Vec<TilePlacement>>
+    moves: Vec<Vec<TilePlacement>>,
 }
 
 impl<'a> MoveGenerator<'a> {
-    fn generate_moves(solver: &'a Solver, letters: &Vec<RackLetter>, row: usize, col: usize, dir: Direction) -> Vec<Vec<TilePlacement>> {
-        let generator = MoveGenerator {
+    fn generate_moves(solver: &'a Solver, rack: &Vec<RackLetter>, row: usize, col: usize, dir: Direction) -> Vec<Vec<TilePlacement>> {
+        let mut generator = MoveGenerator {
             solver,
             row,
             col,
             dir,
             moves: Vec::new(),
         };
+        generator.generate(&mut Vec::new(), 0, rack.clone(), &generator.solver.graph.init);
 
+        // generator.generate(&mut placements, 0, rack, &solver.graph.init);
         generator.moves
     }
 
-    fn generate(&mut self, mut words: &Vec<TilePlacement>, offset: isize, letters: HashSet<RackLetter>, arc: &'a Arc) {
+    fn generate(&mut self, words: &mut Vec<TilePlacement>, offset: isize, rack: Vec<RackLetter>, arc: &'a Arc) {
         let index = self.solver.get_index(self.row, self.col);
         if let Some(_) = self.solver.board[index] {
             // TODO: Go on
@@ -203,7 +205,7 @@ impl<'a> MoveGenerator<'a> {
         }
 
         // no letter remaining, end function
-        if letters.is_empty() {
+        if rack.is_empty() {
             return;
         }
 
@@ -216,32 +218,37 @@ impl<'a> MoveGenerator<'a> {
 
         // this won't be out of index, the bound will be checked in go on method
         let index = self.solver.get_index(row as usize, col as usize);
-        for letter in &letters {
+        if self.solver.cross_sets[index].is_none() {
+            return; // no letter eligible here, return early
+        }
+
+        let cross_set = (&self).solver.cross_sets[index].as_ref().unwrap();
+        for (idx, letter) in (&rack).iter().enumerate() {
             match letter {
-                RackLetter::Char(ch) => {
-                    if let Some(cross_set) = &self.solver.cross_sets[index] {
-                        if cross_set.contains(ch) {
-                            let mut cloned_letters = letters.clone();
-                            cloned_letters.remove(letter);
-                            // TODO: go on
-                        }
-                    }
+                RackLetter::Char(ch) if cross_set.contains(ch) => {
+                    let new_arc = arc.next.arcs.get(&Kind::Char(*ch));
+                    let mut new_rack = rack.clone();
+                    new_rack.remove(idx);
+
+                    self.go_on(TileLetter::Char(*ch), words, offset, new_rack, arc, new_arc);
                 }
                 RackLetter::Blank => {
-                    if let Some(cross_set) = &self.solver.cross_sets[index] {
-                        for playable_letter in cross_set {
-                            // TODO: put blank into the word vector as playable_letter
-                            //       and go on
-                        }
+                    for playable in cross_set {
+                        let new_arc = arc.next.arcs.get(&Kind::Char(*playable));
+                        let mut new_rack = rack.clone();
+                        new_rack.remove(idx);
+
+                        self.go_on(TileLetter::Blank(*playable), words, offset, new_rack, arc, new_arc);
                     }
                 }
+                _ => { /* do nothing */ }
             }
         }
     }
 
     // TODO: should words be a linked list since we need to add both from front and back?
-    fn go_on(&mut self, letter: TileLetter, words: &mut Vec<TilePlacement>,
-             offset: isize, letters: HashSet<RackLetter>, old_arc: &'a Arc, mut new_arc: Option<&'a Arc>) {
+    fn go_on(&mut self, letter: TileLetter, placements: &mut Vec<TilePlacement>,
+             offset: isize, rack: Vec<RackLetter>, old_arc: &'a Arc, mut new_arc: Option<&'a Arc>) {
 
         let mut row = self.row as isize;
         let mut col = self.col as isize;
@@ -252,7 +259,7 @@ impl<'a> MoveGenerator<'a> {
 
         // moving left since offset is less than 0
         if offset <= 0 {
-            words.insert(0, TilePlacement {
+            placements.insert(0, TilePlacement {
                 letter,
                 row: row as usize,
                 col: col as usize
@@ -268,24 +275,22 @@ impl<'a> MoveGenerator<'a> {
                 }
             };
             if old_arc.letter_set.contains(&letter.to_char()) && empty_left {
-                self.moves.push(words.clone());
+                self.moves.push(placements.clone());
             }
 
             if let Some(arc) = new_arc.take() {
                 if (self.dir == Direction::LR && col > 0) || (self.dir == Direction::TD && row > 0) {
-                    self.generate(words, offset - 1, letters.clone(), arc);
+                    self.generate(placements, offset - 1, rack.clone(), arc);
                 }
 
                 let new_arc = arc.next.arcs.get(&Kind::Delim);
                 if new_arc.is_some() {
-                    self.generate(words, 1, letters, new_arc.unwrap());
+                    self.generate(placements, 1, rack, new_arc.unwrap());
                 }
             }
-
-            return;
         } else {
             // in this place, offset is > 0, so we are moving right
-            words.push(TilePlacement {
+            placements.push(TilePlacement {
                 letter,
                 row: row as usize,
                 col: col as usize,
@@ -303,7 +308,14 @@ impl<'a> MoveGenerator<'a> {
                 }
             };
             if old_arc.letter_set.contains(&letter.to_char()) && empty_right {
-                self.moves.push(words.clone());
+                self.moves.push(placements.clone());
+            }
+
+            if (self.dir == Direction::LR && col < self.solver.cols as isize - 1) ||
+                (self.dir == Direction::TD && row < self.solver.cols as isize - 1) {
+                if let Some(arc) = new_arc {
+                    self.generate(placements, offset + 1, rack, arc);
+                }
             }
         }
     }
