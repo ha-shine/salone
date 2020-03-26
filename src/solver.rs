@@ -201,30 +201,40 @@ impl Solver {
 
     pub fn solve(&mut self, letters: &Vec<RackLetter>) -> BinaryHeap<Solution> {
         let mut solutions = BinaryHeap::new();
-        for anchor in &self.anchors {
-            // TODO: actually might not need to generate for every anchor
-            //       i.e some placement would probably already cover the existing anchors
-            let left_anchor = self.get_left_most_anchor(anchor, &Direction::LR);
-            let mut placements = MoveGenerator::generate_moves(&self, letters, left_anchor.0, left_anchor.1, Direction::LR);
-            for placement in placements {
-                // TODO: Calculate score
-                solutions.push(Solution {
-                    placement,
-                    score: 0,
-                })
+        let anchors = self.anchors.clone();
+
+        for anchor in anchors {
+            let left_anchor = self.get_left_most_anchor(&anchor, &Direction::LR);
+            if self.anchors.contains(&left_anchor) {
+                self.generate_moves_in_dir(letters, &left_anchor, Direction::LR, &mut solutions);
             }
 
-            let left_anchor = self.get_left_most_anchor(anchor, &Direction::TD);
-            placements = MoveGenerator::generate_moves(&self, letters, left_anchor.0, left_anchor.1, Direction::TD);
-            for placement in placements {
-                solutions.push(Solution {
-                    placement,
-                    score: 0,
-                })
+            let left_anchor = self.get_left_most_anchor(&anchor, &Direction::LR);
+            if self.anchors.contains(&left_anchor) {
+                self.generate_moves_in_dir(letters, &left_anchor, Direction::LR, &mut solutions);
             }
         }
 
         solutions
+    }
+
+    fn generate_moves_in_dir(&mut self,
+                             letters: &Vec<RackLetter>,
+                             anchor: &Pos,
+                             dir: Direction,
+                             solutions: &mut BinaryHeap<Solution>) {
+        let mut tiles = MoveGenerator::generate_moves(&self, letters, anchor.0, anchor.1, dir);
+        for placements in tiles {
+            for placement in &placements {
+                self.anchors.remove(&(placement.row, placement.col));
+            }
+
+            // TODO: Calculate score
+            solutions.push(Solution {
+                placement: placements,
+                score: 0,
+            })
+        }
     }
 }
 
