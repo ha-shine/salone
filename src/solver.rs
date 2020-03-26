@@ -199,8 +199,8 @@ impl<'a> MoveGenerator<'a> {
 
     fn generate(&mut self, words: &mut Vec<TilePlacement>, offset: isize, rack: Vec<RackLetter>, arc: &'a Arc) {
         let index = self.solver.get_index(self.row, self.col);
-        if let Some(_) = self.solver.board[index] {
-            // TODO: Go on
+        if let Some(tile) = self.solver.board[index] {
+            self.go_on(tile, words, offset, rack, arc, arc.next.arcs.get(&Kind::Char(tile.to_char())));
             return;
         }
 
