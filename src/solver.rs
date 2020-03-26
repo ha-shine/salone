@@ -116,31 +116,36 @@ impl Solver {
     }
 
     // TODO: cross set probably should be computed here too
-    fn compute_anchors(&mut self, placements: &Vec<TilePlacement>) {
+    fn compute_anchors_and_cross_set(&mut self, placements: &Vec<TilePlacement>) {
+        let mut new_anchors = Vec::new();
+
         for placement in placements {
             let row = placement.row;
             let col = placement.col;
             let pos = (row, col);
-
-            self.anchors.remove(&pos);
+            new_anchors.push(pos);
 
             // check the tiles surrounding the current placement
             // if those tiles are empty, they can be anchors for next move
-            if row > 0 {
+            if row > 0 && self.board[self.get_index(row - 1, col)].is_none() {
                 self.anchors.insert((row - 1, col));
             }
 
-            if row < self.rows - 1 {
+            if row < self.rows - 1 && self.board[self.get_index(row + 1, col)].is_none() {
                 self.anchors.insert((row + 1, col));
             }
 
-            if col > 0 {
+            if col > 0 && self.board[self.get_index(row, col - 1)].is_none() {
                 self.anchors.insert((row, col - 1));
             }
 
-            if col < self.cols - 1 {
+            if col < self.cols - 1 && self.board[self.get_index(row, col + 1)].is_none() {
                 self.anchors.insert((row, col + 1));
             }
+        }
+
+        for anchor in new_anchors {
+            self.anchors.remove(&anchor);
         }
     }
 
@@ -153,8 +158,11 @@ impl Solver {
     pub fn solve(&mut self, letters: &Vec<RackLetter>) -> BinaryHeap<Solution> {
         let mut solutions = BinaryHeap::new();
         for anchor in &self.anchors {
+            // TODO: actually might not need to generate for every anchor
+            //       i.e some placement would probably already cover the existing anchors
             let mut placements = MoveGenerator::generate_moves(&self, letters, anchor.0, anchor.1, Direction::LR);
             for placement in placements {
+                // TODO: Calculate score
                 solutions.push(Solution {
                     placement,
                     score: 0,
@@ -193,7 +201,6 @@ impl<'a> MoveGenerator<'a> {
         };
         generator.generate(&mut Vec::new(), 0, rack.clone(), &generator.solver.graph.init);
 
-        // generator.generate(&mut placements, 0, rack, &solver.graph.init);
         generator.moves
     }
 
