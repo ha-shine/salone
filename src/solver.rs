@@ -82,9 +82,10 @@ pub struct Solver {
     // 0: cross sets for left-right plays, 1: cross sets for top-down plays
     cross_sets: (Vec<CharSet>, Vec<CharSet>),
 
-    // List of index of anchors
-    // Anchors are a set of tiles we can start looking for a legal move
-    anchors: HashSet<Pos>,
+    // List of index of candidate anchors
+    // Anchors are a set of tiles we can start looking for a legal move and these are potential
+    // candidates
+    candidates: HashSet<Pos>,
 }
 
 impl Solver {
@@ -108,11 +109,11 @@ impl Solver {
             cols,
             board: vec![None; rows * cols],
             cross_sets: (lr_cross, td_cross),
-            anchors: HashSet::new(),
+            candidates: HashSet::new(),
         };
 
         // the center of the board is the only anchor at the start of the game
-        solver.anchors.insert((rows / 2, cols / 2));
+        solver.candidates.insert((rows / 2, cols / 2));
 
         Ok(solver)
     }
@@ -134,35 +135,34 @@ impl Solver {
             Direction::LR => {
                 let (mut row, mut col) = *pos;
                 while row > 0 {
-                    if self.anchors.contains(&(row - 1, col)) {
+                    if self.candidates.contains(&(row - 1, col)) {
                         row -= 1;
                     }
                 }
 
-                return (row, col)
+                (row, col)
             },
             Direction::TD => {
                 let (mut row, mut col) = *pos;
                 while col > 0 {
-                    if self.anchors.contains(&(row, col - 1)) {
+                    if self.candidates.contains(&(row, col - 1)) {
                         row -= 1;
                     }
                 }
 
-                return (row, col)
+                (row, col)
             }
         }
     }
 
-    // TODO: cross set probably should be computed here too
-    fn compute_anchors_and_cross_set(&mut self, placements: &Vec<TilePlacement>) {
-        let mut new_anchors = Vec::new();
+    fn compute_candidates(&mut self, placements: &Vec<TilePlacement>) {
+        let mut new_candidates = Vec::new();
 
         for placement in placements {
             let row = placement.row;
             let col = placement.col;
             let pos = (row, col);
-            new_anchors.push(pos);
+            new_candidates.push(pos);
 
             // empty the cross sets for this index
             let i = self.get_index(row, col);
@@ -172,25 +172,30 @@ impl Solver {
             // check the tiles surrounding the current placement
             // if those tiles are empty, they can be anchors for next move
             if row > 0 && self.board[self.get_index(row - 1, col)].is_none() {
-                self.anchors.insert((row - 1, col));
+                self.candidates.insert((row - 1, col));
             }
 
             if row < self.rows - 1 && self.board[self.get_index(row + 1, col)].is_none() {
-                self.anchors.insert((row + 1, col));
+                self.candidates.insert((row + 1, col));
             }
 
             if col > 0 && self.board[self.get_index(row, col - 1)].is_none() {
-                self.anchors.insert((row, col - 1));
+                self.candidates.insert((row, col - 1));
             }
 
             if col < self.cols - 1 && self.board[self.get_index(row, col + 1)].is_none() {
-                self.anchors.insert((row, col + 1));
+                self.candidates.insert((row, col + 1));
             }
         }
 
-        for anchor in new_anchors {
-            self.anchors.remove(&anchor);
+        for candidate in new_candidates {
+            self.candidates.remove(&candidate);
         }
+    }
+
+    fn compute_cross_sets() {
+        // for now, we will iterate through all candidate squares and compute cross sets for them
+        // TODO: complete this
     }
 
     pub fn add_dictionary_word(&mut self, word: &str) {
@@ -201,17 +206,17 @@ impl Solver {
 
     pub fn generate_moves(&mut self, letters: &Vec<RackLetter>) -> BinaryHeap<Solution> {
         let mut solutions = BinaryHeap::new();
-        let anchors = self.anchors.clone();
+        let candidates = self.candidates.clone();
 
-        for anchor in anchors {
-            let left_anchor = self.get_left_most_anchor(&anchor, &Direction::LR);
-            if self.anchors.contains(&left_anchor) {
-                self.generate_moves_in_dir(letters, &left_anchor, Direction::LR, &mut solutions);
+        for candidate in candidates {
+            let anchor = self.get_left_most_anchor(&candidate, &Direction::LR);
+            if self.candidates.contains(&anchor) {
+                self.generate_moves_in_dir(letters, &anchor, Direction::LR, &mut solutions);
             }
 
-            let left_anchor = self.get_left_most_anchor(&anchor, &Direction::LR);
-            if self.anchors.contains(&left_anchor) {
-                self.generate_moves_in_dir(letters, &left_anchor, Direction::LR, &mut solutions);
+            let anchor = self.get_left_most_anchor(&candidate, &Direction::LR);
+            if self.candidates.contains(&anchor) {
+                self.generate_moves_in_dir(letters, &anchor, Direction::LR, &mut solutions);
             }
         }
 
@@ -226,7 +231,7 @@ impl Solver {
         let mut tiles = MoveGenerator::generate_moves(&self, letters, anchor.0, anchor.1, dir);
         for placements in tiles {
             for placement in &placements {
-                self.anchors.remove(&(placement.row, placement.col));
+                self.candidates.remove(&(placement.row, placement.col));
             }
 
             // TODO: Calculate score
