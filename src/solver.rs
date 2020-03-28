@@ -193,8 +193,33 @@ impl Solver {
         }
     }
 
-    fn compute_cross_sets() {
+    fn compute_cross_sets(&mut self) {
         // for now, we will iterate through all candidate squares and compute cross sets for them
+        // TODO: might not need to clone here
+        for candidate in self.candidates.clone() {
+            let (row, col) = *candidate;
+            let mut offset = 0;
+
+            // 1. skip down to the bottom most square and walk up from there
+            while row + offset < self.rows - 1 && self.board[self.get_index(row + offset + 1, col)].is_some() {
+                offset += 1;
+            }
+            if offset > 0 {
+                self.walk_tile(row + offset, col, 0, &Direction::TD)
+            }
+
+            // 2. skip across to the right most square and walk left from there
+            offset = 0;
+            while col + offset < self.cols - 1 && self.board[self.get_index(row, col + offset + 1)].is_some() {
+                offset += 1;
+            }
+            if offset > 0 {
+                self.walk_tile(row, col + offset, 0, &Direction::LR)
+            }
+        }
+    }
+
+    fn walk_tile(&mut self, row: usize, col: usize, offset: isize, dir: &Direction) {
         // TODO: complete this
     }
 
